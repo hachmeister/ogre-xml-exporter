@@ -96,7 +96,7 @@ class Submeshes:
   
 class Submesh:
   def __init__(self):
-    self.material = ""
+    self.material = ''
     self.usesharedvertices = True
     self.use32bitindexes = False
     self.faces = None
@@ -150,6 +150,21 @@ class ExportOgreXML(bpy.types.Operator, ExportHelper):
       vertex.normal = Vector3(v.normal[0], v.normal[1], v.normal[2])
       vbuf.vertex_list.append(vertex)
     sharedgeometry.vertexbuffer_list.append(vbuf)
+    
+    # collect materials
+    materials = []
+    for m in obj.data.materials:
+      if m:
+        submesh = Submesh()
+        submesh.material = m.name
+        submesh.faces = Faces()
+        submeshes.submesh_list.append(submesh)
+        materials.append(m)
+        print(m.name)
+    
+    # create faces
+    #for f in obj.data.tessfaces:
+      
       
     return (sharedgeometry, submeshes)
 
@@ -239,6 +254,8 @@ def val(value):
     return str(value).lower()
   elif isinstance(value, int):
     return str(value)
+  else:
+    return value
     
 ### Register/Unregister functions #################################################
 
