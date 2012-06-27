@@ -163,8 +163,14 @@ class ExportOgreXML(bpy.types.Operator, ExportHelper):
         print(m.name)
     
     # create faces
-    #for f in obj.data.tessfaces:
-      
+    for f in obj.data.tessfaces:
+      submesh = submeshes.submesh_list[f.material_index]
+      faces = submesh.faces
+      faces.face_list.append(Face(f.vertices[0], f.vertices[1], f.vertices[2]))
+      faces.count += 1
+      if len(f.vertices) > 3:
+        faces.face_list.append(Face(f.vertices[0], f.vertices[2], f.vertices[3]))
+        faces.count += 1
       
     return (sharedgeometry, submeshes)
 
