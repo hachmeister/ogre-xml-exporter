@@ -137,7 +137,9 @@ class ExportOgreXML(bpy.types.Operator, ExportHelper):
     sharedgeometry = Geometry()
     submeshes = Submeshes()
     
-    obj.data.update(calc_tessface = True)
+    #obj.data.update(calc_tessface = True)
+    obj.data.calc_tessface()
+    obj.data.calc_normals()
     
     # create vertexbuffer
     vbuf = Vertexbuffer()
@@ -146,7 +148,12 @@ class ExportOgreXML(bpy.types.Operator, ExportHelper):
     for v in obj.data.vertices:
       sharedgeometry.vertexcount += 1
       vertex = Vertex()
-      vertex.position = Vector3(v.co[0], v.co[1], v.co[2])
+      x, y, z = swap(v.co)
+      vertex.position = Vector3(x, y, z)
+#      if smooth:
+#        nx, ny, nz = swap(v.normal)
+#      else:
+#        nx, ny, nz = swap(f.normal)
       vertex.normal = Vector3(v.normal[0], v.normal[1], v.normal[2])
       vbuf.vertex_list.append(vertex)
     sharedgeometry.vertexbuffer_list.append(vbuf)
@@ -262,6 +269,12 @@ def val(value):
     return str(value)
   else:
     return value
+
+def swap(vec):
+  if len(vec) == 3:
+    return mathutils.Vector([vec.x, vec.z, -vec.y])
+  elif len(vec) == 4:
+    return mathutils.Quaternion([ vec.w, vec.x, vec.z, -vec.y])
     
 ### Register/Unregister functions #################################################
 
