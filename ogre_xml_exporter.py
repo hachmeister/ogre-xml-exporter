@@ -14,7 +14,7 @@ bl_info = {
 
 import os, pprint
 from xml.sax.saxutils import XMLGenerator
-import bpy
+import bpy, mathutils
 from bpy_extras.io_utils import ExportHelper
 
 ### SimpleSaxWriter ###############################################################
@@ -127,26 +127,26 @@ class ExportOgreXML(bpy.types.Operator, ExportHelper):
     objects = bpy.context.selected_objects
     for obj in objects:
       if obj.type == 'MESH':
-        mesh = Mesh()
-        mesh.sharedgeometry, mesh.submeshes = self.sharedgeometry(obj)
+        mesh = self.mesh(obj)
         self.write_mesh(mesh, obj.name)
     
     return {'FINISHED'};
     
-  def sharedgeometry(self, obj):
-    sharedgeometry = Geometry()
-    submeshes = Submeshes()
+  def mesh(self, obj):
+    mesh = Mesh()
+    mesh.sharedgeometry = Geometry()
+    mesh.submeshes = Submeshes()
     
     #obj.data.update(calc_tessface = True)
     obj.data.calc_tessface()
     obj.data.calc_normals()
     
     # create vertexbuffer
-    vbuf = Vertexbuffer()
-    vbuf.positions = True
-    vbuf.normals = True
+#    vbuf = Vertexbuffer()
+#    vbuf.positions = True
+#    vbuf.normals = True
     for v in obj.data.vertices:
-      sharedgeometry.vertexcount += 1
+      mesh.sharedgeometry.vertexcount += 1
       vertex = Vertex()
       x, y, z = swap(v.co)
       vertex.position = Vector3(x, y, z)
@@ -154,9 +154,12 @@ class ExportOgreXML(bpy.types.Operator, ExportHelper):
 #        nx, ny, nz = swap(v.normal)
 #      else:
 #        nx, ny, nz = swap(f.normal)
-      vertex.normal = Vector3(v.normal[0], v.normal[1], v.normal[2])
+
+      nx, ny, nz = swap(v.normal)
+      
+      vertex.normal = Vector3(nx, ny, nz)
       vbuf.vertex_list.append(vertex)
-    sharedgeometry.vertexbuffer_list.append(vbuf)
+#    sharedgeometry.vertexbuffer_list.append(vbuf)
     
     # collect materials
     materials = []
@@ -165,21 +168,46 @@ class ExportOgreXML(bpy.types.Operator, ExportHelper):
         submesh = Submesh()
         submesh.material = m.name
         submesh.faces = Faces()
-        submeshes.submesh_list.append(submesh)
+        mesh.submeshes.submesh_list.append(submesh)
         materials.append(m)
         print(m.name)
     
+    # create vertexbuffer
+    vbuf = Vertexbuffer()
+    vbuf.positions = True
+    vbuf.normals = True
+    
     # create faces
     for f in obj.data.tessfaces:
-      submesh = submeshes.submesh_list[f.material_index]
+      submesh = mesh.submeshes.submesh_list[f.material_index]
       faces = submesh.faces
-      faces.face_list.append(Face(f.vertices[0], f.vertices[1], f.vertices[2]))
-      faces.count += 1
-      if len(f.vertices) > 3:
-        faces.face_list.append(Face(f.vertices[0], f.vertices[2], f.vertices[3]))
-        faces.count += 1
       
-    return (sharedgeometry, submeshes)
+      face = self.add_face(f, vbuf, sharedgeometry)
+      faces.face_list.append(face)
+      faces.count += 1
+      
+#      faces.face_list.append(Face(f.vertices[0], f.vertices[1], f.vertices[2]))
+#      faces.count += 1
+      if len(f.vertices) > 3:
+        face = self.add_face(f, vbuf, sharedgeometry)
+        faces.face_list.append(face)
+        faces.count += 1
+#        faces.face_list.append(Face(f.vertices[0], f.vertices[2], f.vertices[3]))
+#        faces.count += 1
+    
+    mesh.sharedgeometry.vertexbuffer_list.append(vbuf)
+      
+    return mesh
+    
+  def add_face(self, face, vertexbuffer, sharedgeometry):
+    v1 = self.add_vertex(face.vertices[0])
+    v2 = self.add_vertex(face.vertices[1])
+    v3 = self.add_vertex(face.vertices[2])
+    
+    return Face(v1, v2, v3)
+    
+  def add_vertex(self, v):
+    #
 
   def write_mesh(self, mesh, name):
     out = open(os.path.join(self.path, name + ".mesh.xml"), 'w')
