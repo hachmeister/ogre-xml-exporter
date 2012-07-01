@@ -71,7 +71,7 @@ class Vertexbuffer:
     self.normals = False
     self.colours_diffuse = False
     self.colours_specular = False
-    self.vertex_list = []
+    self.vertex_list = {}
   
 class Vertex:
   def __init__(self):
@@ -79,12 +79,22 @@ class Vertex:
     self.normal = None
     self.colour_diffuse = None
     self.colour_specular = None
+    
+  def __eq__(self, o):
+    if self.position != o.position or self.normal != o.normal:
+      return False
+    return True
   
 class Vector3:
   def __init__(self, x = 0.0, y = 0.0, z = 0.0):
     self.x = x
     self.y = y
     self.z = z
+    
+  def __eq__(self, o):
+    if self.x != o.x or self.y != o.y or self.z != o.z:
+      return False
+    return True
 
 class Colour:
   def __init__(self, value = ""):
@@ -141,26 +151,6 @@ class ExportOgreXML(bpy.types.Operator, ExportHelper):
     obj.data.calc_tessface()
     obj.data.calc_normals()
     
-    # create vertexbuffer
-#    vbuf = Vertexbuffer()
-#    vbuf.positions = True
-#    vbuf.normals = True
-    for v in obj.data.vertices:
-      mesh.sharedgeometry.vertexcount += 1
-      vertex = Vertex()
-      x, y, z = swap(v.co)
-      vertex.position = Vector3(x, y, z)
-#      if smooth:
-#        nx, ny, nz = swap(v.normal)
-#      else:
-#        nx, ny, nz = swap(f.normal)
-
-      nx, ny, nz = swap(v.normal)
-      
-      vertex.normal = Vector3(nx, ny, nz)
-      vbuf.vertex_list.append(vertex)
-#    sharedgeometry.vertexbuffer_list.append(vbuf)
-    
     # collect materials
     materials = []
     for m in obj.data.materials:
@@ -172,42 +162,67 @@ class ExportOgreXML(bpy.types.Operator, ExportHelper):
         materials.append(m)
         print(m.name)
     
+    # UV
+    dotextures = False
+    uvcache = []
+    if mesh.tessface_uv_textures.active:
+      dotextures = True
+      for layer in mesh.tessface_uv_textures:
+        uvs = []
+        uvcache.append(uvs)
+        for uvface in layer.data:
+          uvs.append((uvface.uv1, uvface.uv2, uvface.uv3, uvface.uv4))
+
     # create vertexbuffer
     vbuf = Vertexbuffer()
     vbuf.positions = True
     vbuf.normals = True
-    
+
     # create faces
     for f in obj.data.tessfaces:
       submesh = mesh.submeshes.submesh_list[f.material_index]
       faces = submesh.faces
       
-      face = self.add_face(f, vbuf, sharedgeometry)
+      face = self.add_face(f, f.vertices[0], f.vertices[1], f.vertices[2], obj, vbuf, mesh.sharedgeometry)
       faces.face_list.append(face)
       faces.count += 1
       
-#      faces.face_list.append(Face(f.vertices[0], f.vertices[1], f.vertices[2]))
-#      faces.count += 1
       if len(f.vertices) > 3:
-        face = self.add_face(f, vbuf, sharedgeometry)
+        face = self.add_face(f, f.vertices[0], f.vertices[2], f.vertices[3], obj, vbuf, mesh.sharedgeometry)
         faces.face_list.append(face)
         faces.count += 1
-#        faces.face_list.append(Face(f.vertices[0], f.vertices[2], f.vertices[3]))
-#        faces.count += 1
     
     mesh.sharedgeometry.vertexbuffer_list.append(vbuf)
       
     return mesh
     
-  def add_face(self, face, vertexbuffer, sharedgeometry):
-    v1 = self.add_vertex(face.vertices[0])
-    v2 = self.add_vertex(face.vertices[1])
-    v3 = self.add_vertex(face.vertices[2])
+  def add_face(self, face, v1, v2, v3, obj, vertexbuffer, sharedgeometry):
+    idx1 = self.add_vertex(obj.data.vertices[v1], face, vertexbuffer, sharedgeometry)
+    idx2 = self.add_vertex(obj.data.vertices[v2], face, vertexbuffer, sharedgeometry)
+    idx3 = self.add_vertex(obj.data.vertices[v3], face, vertexbuffer, sharedgeometry)
     
-    return Face(v1, v2, v3)
+    return Face(idx1, idx2, idx3)
     
-  def add_vertex(self, v):
-    #
+  def add_vertex(self, vertice, face, vertexbuffer, sharedgeometry):
+    vertex = Vertex()
+    
+    x, y, z = swap(vertice.co)
+    vertex.position = Vector3(x, y, z)
+    
+    if face.use_smooth:
+      nx, ny, nz = swap(vertice.normal)
+    else:
+      nx, ny, nz = swap(face.normal)
+    vertex.normal = Vector3(nx, ny, nz)
+    
+    for idx in vertexbuffer.vertex_list:
+      if vertex == vertexbuffer.vertex_list[idx]:
+        return idx
+    
+    idx = len(vertexbuffer.vertex_list)
+    vertexbuffer.vertex_list[idx] = vertex
+    sharedgeometry.vertexcount += 1
+    return idx
 
   def write_mesh(self, mesh, name):
     out = open(os.path.join(self.path, name + ".mesh.xml"), 'w')
@@ -232,8 +247,8 @@ class ExportOgreXML(bpy.types.Operator, ExportHelper):
       'positions' : val(vertexbuffer.positions),
       'normals' : val(vertexbuffer.normals)
     })
-    for vertex in vertexbuffer.vertex_list:
-      self.write_vertex(doc, vertex)
+    for idx in range(len(vertexbuffer.vertex_list)):
+      self.write_vertex(doc, vertexbuffer.vertex_list[idx])
     doc.end_tag('vertexbuffer')
     
   def write_vertex(self, doc, vertex):
