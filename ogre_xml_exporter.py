@@ -165,13 +165,13 @@ class ExportOgreXML(bpy.types.Operator, ExportHelper):
     # UV
     dotextures = False
     uvcache = []
-    if mesh.tessface_uv_textures.active:
+    if obj.data.tessface_uv_textures.active:
       dotextures = True
-      for layer in mesh.tessface_uv_textures:
-        uvs = []
-        uvcache.append(uvs)
-        for uvface in layer.data:
-          uvs.append((uvface.uv1, uvface.uv2, uvface.uv3, uvface.uv4))
+#      for layer in obj.data.tessface_uv_textures:
+#        uvs = []
+#        uvcache.append(uvs)
+#        for uvface in layer.data:
+#          uvs.append((uvface.uv1, uvface.uv2, uvface.uv3, uvface.uv4))
 
     # create vertexbuffer
     vbuf = Vertexbuffer()
